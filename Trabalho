@@ -1,0 +1,78 @@
+# Bitmap Medidas: 1,1,256,256, 1004xHeap (So funciona assim)
+
+
+.data
+    cores:     .word   0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00  # Vermelho, Verde, Azul, Amarelo
+    centroX:    .word   128      #Medidas do circulo
+    centroY:    .word   128
+    raio:     .word   100
+
+.text
+main:
+    li $t0, 0x10040000  # Endereço base do display
+    
+    # Inicializar coordenadas
+    li $t1, 0           # y = 0
+    li $t2, 256         # altura total
+    
+y_loop:
+    li $t3, 0           # x = 0
+    li $t4, 256         # largura total
+    
+x_loop:
+    # Calcular distancia do centro
+    sub $t5, $t3, 128   # x - centroX
+    sub $t6, $t1, 128   # y - centroY
+    
+    # Verificar se está dentro do circulo (x² + y² < r²), usa a formula para confirmar se esta formando um circulo
+    mul $t5, $t5, $t5   # (x - cx)²
+    mul $t6, $t6, $t6   # (y - cy)²
+    add $t7, $t5, $t6   # distancia ao quadrado
+    
+    lw $t8, raio
+    mul $t8, $t8, $t8   # r²
+    
+    bge $t7, $t8, pula_pixel  # Pular se fora do círculo
+    
+    # Determinar quadrante
+    blt $t3, 128, baixo_esq
+    blt $t1, 128, topo_dir
+    li $t9, 3           # Quadrante 3 (amarelo)
+    j selecionar_cor
+    
+topo_dir:
+    li $t9, 0           # Quadrante 0 (vermelho)
+    j selecionar_cor
+    
+baixo_esq:
+    blt $t1, 128, top_left
+    li $t9, 2           # Quadrante 2 (azul)
+    j selecionar_cor
+    
+top_left:
+    li $t9, 1           # Quadrante 1 (verde)
+    
+selecionar_cor:
+    # Calcular endereço do pixel
+    sll $t5, $t1, 8     # y * 256
+    add $t5, $t5, $t3   # + x
+    sll $t5, $t5, 2     # * 4 (bytes por pixel)
+    add $t5, $t5, $t0   # + endereço base
+    
+    # Carregar cor do quadrante
+    sll $t6, $t9, 2     # índice * 4
+    lw $t7, cores($t6) # carregar cor
+    
+    # Escrever pixel
+    sw $t7, 0($t5)
+    
+pula_pixel:
+    addi $t3, $t3, 1    # x++
+    blt $t3, $t4, x_loop
+    
+    addi $t1, $t1, 1    # y++
+    blt $t1, $t2, y_loop
+    
+    # Terminar programa
+    li $v0, 10
+    syscall
