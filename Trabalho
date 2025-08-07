@@ -3,10 +3,11 @@
 
 .data
 #----------------------------------------------Vetores e afins-------------------------
-    vetor: .space 12      # Vetor que fai armazenar as cores, coloquei so 3 para testar, depois tem que mudar
+    vetor: .space 40     # Vetor que fai armazenar as cores, coloquei so 3 para testar, depois tem que mudar
     			#P.S nao se esqueça que tem que multiplicar por 4 (por causa dos bytes) ex 12(tamanho) = 3(tamanho) x 4
-    size:  .word 3        # Tamanho do vetor
+    size:  .word 10       # Tamanho do vetor
     nivel: .word 1         # Nível atual
+    dificuldade_set: .word 1 # 0 Normal 1 Dificil
 #--------------------------------------------------------------------------
 
 #------------------Coisas envolvendo o circulo-----------------------------------    
@@ -27,7 +28,9 @@
     print_erro: .asciiz "Voce errou"
     espaco: .asciiz " "
     gameover: .asciiz "Game Over" 
-    print_acerto: .asciiz "Parabens!! Você e´o melhor de todos!! Agora o proximo nivel "
+    print_acerto: .asciiz "Agora o proximo nivel "
+    print_menu: .asciiz "Selecione uma opção: \n 1: Jogar \n 2: Modo dificil \n 3:Opçoes \n 4:Sair"
+    modo_daltonico: .asciiz "Voce quer jogar o modo daltonico 1: Para sim ou 2: Para não?"
 #-----------------------------------------------------
 
 
@@ -39,6 +42,20 @@ main:
     	li $a0, 12345
     	li $v0, 30
     	syscall
+    	
+    	la $a0, print_menu     # Printf do menu
+    	li $v0, 4		
+   	syscall
+   	
+   	li $v0, 5  #Opçao menu
+   	syscall
+   	
+   	move $t0,$v0 #selecionar
+   	
+   	bge $t0,4,final_saida #So para sair
+   	#bge $t0,3,daltonismo #Funçao para colocar o modo daltonico(Incompleta)
+   	j dificuldade # Altera a dificuldade
+setting_dificuldade:
     
     li $t0, 0x10040000  # Endereço base do display
     
@@ -132,7 +149,7 @@ game_over:
     la $a0, gameover
     li $v0, 4
     syscall
-
+final_saida:
     li $v0, 10
     syscall
 
@@ -225,11 +242,13 @@ proximo_nivel:
     li $v0, 4
     syscall
 
-
+    lw $t0, dificuldade_set   # Ve se esta no modo normal ou dificil
+    beq $t0,1,proximo_nivel_hard # Se for no dificil vai para o loop hard
+    
     lw $t0, nivel    # Vai aumentando o nivel junto com o vetor
     addi $t0, $t0, 1
     sw $t0, nivel
-    
+      
     la $t1, vetor 
     li $t2, 0
 
@@ -248,4 +267,60 @@ gerar_nova_cor:
 
     jr $ra
 
-    
+dificuldade: 
+	beq $t0,2, hard
+	li $t1, 0
+	sw $t1,dificuldade_set
+	
+	j setting_dificuldade
+	
+hard: 
+	li $t1, 1
+    	sw $t1, dificuldade_set       # seta dificuldade como 1 (difícil)
+
+    	lw $t1, nivel    
+    	addi $t1, $t1, 1              
+    	sw $t1, nivel
+	
+	j setting_dificuldade
+	
+proximo_nivel_hard: #Exatamente a mesma coisa que o normal so que incrementa as cores de 2 em 2
+
+    la $a0, print_acerto
+    li $v0, 4
+    syscall
+
+    lw $t0, nivel    
+    addi $t0, $t0, 2     # Incrementa o nível em 2
+    sw $t0, nivel	
+
+    la $t1, vetor        
+    li $t2, 0
+
+proximo_loop_hard:
+    lw $t3, nivel
+    sub $t3, $t3, 2         # Posição atual antes da adição
+    beq $t2, $t3, gerar_duas_cores
+    addi $t1, $t1, 4
+    addi $t2, $t2, 1
+    j proximo_loop_hard
+
+# Gera duas cores novas
+gerar_duas_cores:
+    # Primeira nova cor
+    li $v0, 42
+    li $a0, 0
+    li $a1, 4
+    syscall
+    sw $a0, 0($t1)
+
+    addi $t1, $t1, 4
+
+    # Segunda nova cor
+    li $v0, 42
+    li $a0, 0
+    li $a1, 4
+    syscall
+    sw $a0, 0($t1)
+
+    jr $ra
