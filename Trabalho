@@ -2,13 +2,44 @@
 
 
 .data
+#----------------------------------------------Vetores e afins-------------------------
+    vetor: .space 12      # Vetor que fai armazenar as cores, coloquei so 3 para testar, depois tem que mudar
+    			#P.S nao se esqueça que tem que multiplicar por 4 (por causa dos bytes) ex 12(tamanho) = 3(tamanho) x 4
+    size:  .word 3        # Tamanho do vetor
+    nivel: .word 1         # Nível atual
+#--------------------------------------------------------------------------
+
+#------------------Coisas envolvendo o circulo-----------------------------------    
     cores:     .word   0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00  # Vermelho, Verde, Azul, Amarelo
     centroX:    .word   128      #Medidas do circulo
     centroY:    .word   128
-    raio:     .word   100
+    raio:     .word   100	#------------------
+#---------------------------------------------------------------------------------------
+
+#----------------Randomizador---------------------------------------------   
+    min:    .word 1       # Valores para fazer o srand
+    max:    .word 4     
+ #---------------------------------------------------------
+ 
+#-----------------Mensagens---------------------------------------------  
+    cor_print: .asciiz "A cor selecionada e: "
+    cor_resposta: .asciiz "Eu acho q a cor e: "
+    print_erro: .asciiz "Voce errou"
+    espaco: .asciiz " "
+    gameover: .asciiz "Game Over" 
+    print_acerto: .asciiz "Parabens!! Você e´o melhor de todos!! Agora o proximo nivel "
+#-----------------------------------------------------
+
+
 
 .text
 main:
+
+	# Seed para random
+    	li $a0, 12345
+    	li $v0, 30
+    	syscall
+    
     li $t0, 0x10040000  # Endereço base do display
     
     # Inicializar coordenadas
@@ -73,6 +104,148 @@ pula_pixel:
     addi $t1, $t1, 1    # y++
     blt $t1, $t2, y_loop
     
-    # Terminar programa
+    # Carregar o Vetor
+    la $t0, vetor     # Carrega endereço base do vetor em $t0
+    lw $t1, size      # Carrega tamanho do vetor em $t1
+    li $t2, 0         # Inicializa contador (i = 0)
+    
+    # O jogo começa de fato
+    
+    
+jal inicializar_vetor
+    
+jogo_loop:
+	# Todas as funcoes/jumps
+    jal mostrar_sequencia #Mostra o vetor das cores
+    jal resposta # Acontece os inputs
+
+    beqz $v0, game_over  # Se $v0 == 0 gameover :(
+
+    jal proximo_nivel # Vai incrementando o vetor das cores
+    j jogo_loop
+
+game_over:
+    la $a0, print_erro  # Mensagens de game over
+    li $v0, 4
+    syscall
+
+    la $a0, gameover
+    li $v0, 4
+    syscall
+
     li $v0, 10
     syscall
+
+inicializar_vetor:
+    la $t0, vetor  #Pega o endereço do começo do vetor
+    lw $t1, size  # E o tamanho 
+    li $t2, 0 #Contador
+geracao_cores:
+
+    bge $t2, $t1, final_geracao # Vai preenchendo o vetor
+    li $v0, 42
+    li $a0, 0
+    li $a1, 4
+    syscall
+    
+    sw $a0, 0($t0)   #E vai salvando no vetor
+    addi $t0, $t0, 4
+    addi $t2, $t2, 1
+    j geracao_cores
+    
+final_geracao:
+    jr $ra
+
+# Mostra a sequência atual
+mostrar_sequencia:
+    	la $a0, cor_print      # Printf para facilitar leitura
+    	li $v0, 4		
+   	 syscall		
+    
+    	la $t0, vetor     #Prepara o vetor das cores para mostrar no "mostrar_loop"
+    	lw $t1, nivel
+    	li $t2, 0
+    
+mostrar_loop:
+    	bge $t2, $t1, fim_mostrar
+    
+    	# Mostra o numero/ cor quando conseguirmos implementar
+    	lw $a0, 0($t0)
+    	li $v0, 1
+    	syscall
+    
+    	# Espaco para facilitar a leitura de numeros com cores acho q n vai precisar
+   	 la $a0, espaco
+   	 li $v0, 4
+   	 syscall
+    
+    	addi $t0, $t0, 4 #Faz o loop
+    	addi $t2, $t2, 1
+    	j mostrar_loop
+    
+fim_mostrar:
+    jr $ra
+
+resposta:
+    la $a0, cor_resposta   #Printf esperando o input do usuario
+    li $v0, 4
+    syscall
+    
+    la $t0, vetor     #Prepara o vetor das cores para ser comparado
+    lw $t1, nivel
+    li $t2, 0
+    
+resposta_loop:
+    bge $t2, $t1, fim_resposta_ok
+    
+    # Lê número do usuário
+    li $v0, 5	#Digita a cor( Depis tem que fazer com que seja o click do mouse)
+    syscall
+    move $t4,$v0  # Move a resposta para poder comparar
+    
+    # Verifica se esta correto
+    lw $t3, 0($t0)
+    bne $t4, $t3, resposta_errada  #Faz a comparacao
+    
+    addi $t0, $t0, 4   #Incrementa o vetor
+    addi $t2, $t2, 1
+    j resposta_loop
+    
+resposta_errada:
+    li $v0, 0    # Retorna 0 (erro)
+    jr $ra
+    
+fim_resposta_ok:
+    li $v0, 1    # Retorna 1 tudo joia
+    jr $ra
+
+proximo_nivel:
+
+    la $a0, print_acerto
+    li $v0, 4
+    syscall
+
+
+    lw $t0, nivel    # Vai aumentando o nivel junto com o vetor
+    addi $t0, $t0, 1
+    sw $t0, nivel
+    
+    la $t1, vetor 
+    li $t2, 0
+
+proximo_loop:
+    beq $t2, $t0, gerar_nova_cor  # Acha onde colocar a nova cor
+    addi $t1, $t1, 4
+    addi $t2, $t2, 1
+    j proximo_loop
+
+gerar_nova_cor:
+    li $v0, 42   # Gera uma nova cor aleatoria
+    li $a0, 0
+    li $a1, 4
+    syscall
+    sw $a0, 0($t1) #E salva no vetor
+
+    jr $ra
+
+    
